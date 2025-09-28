@@ -1,0 +1,22 @@
+# Виртуальное окружение
+/venv/
+
+# Файлы моделей
+*.gguf
+*.safetensors
+
+# Python-кэш
+__pycache__/
+*.pyc
+
+# Установочные файлы
+*.whl
+
+# Файлы PyCharm
+.idea/
+
+# Файлы VS Code
+.vscode/
+
+# База данных Django (появится позже)
+db.sqlite3
