@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>RAG-система для анализа документов</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background-color: #f4f4f9; color: #333; }
+        h1 { color: #0056b3; }
+        form { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="file"], textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #0056b3; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #004494; }
+        .answer-section { margin-top: 30px; background-color: #e9ecef; padding: 20px; border-radius: 8px; }
+        h2 { color: #333; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>RAG-система для анализа документов</h1>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="form-group">
+            {{ form.docfile.label_tag }}
+            {{ form.docfile }}
+        </div>
+
+        <div class="form-group">
+            {{ form.question.label_tag }}
+            {{ form.question }}
+        </div>
+
+        <button type="submit">Получить ответ</button>
+    </form>
+
+    {% if answer %}
+    <div class="answer-section">
+        <h2>Ответ модели:</h2>
+        <p>{{ answer|linebreaksbr }}</p>
+    </div>
+    {% endif %}
+
+</body>
+</html>
