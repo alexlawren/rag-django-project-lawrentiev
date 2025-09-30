@@ -1,6 +1,6 @@
 from django import forms
 
-class DocumentForm(forms.ModelForm):
+class DocumentForm(forms.Form):
     # Поле для разгрузки документа
     docfile = forms.FileField(
         label = 'Выберите документ для анализа'

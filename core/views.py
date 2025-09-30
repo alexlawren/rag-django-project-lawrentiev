@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from .forms import DocumentForm
 
-def upload(request):
+def upload_and_ask(request):
     form = DocumentForm()
     answer = None
     if request.method == 'POST':
