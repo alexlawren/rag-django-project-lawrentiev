@@ -6,40 +6,57 @@
     <style>
         body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background-color: #f4f4f9; color: #333; }
         h1 { color: #0056b3; }
-        form { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .main-form, .answer-section { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input[type="file"], textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
         button { background-color: #0056b3; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
         button:hover { background-color: #004494; }
-        .answer-section { margin-top: 30px; background-color: #e9ecef; padding: 20px; border-radius: 8px; }
-        h2 { color: #333; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        .context-chunk { border: 1px dashed #aaa; padding: 10px; margin-top: 10px; background-color: #f8f9fa; }
+        .document-info { font-style: italic; color: #555; }
     </style>
 </head>
 <body>
 
     <h1>RAG-система для анализа документов</h1>
 
-    <form method="post" enctype="multipart/form-data">
+    {% if document_name %}
+        <p class="document-info"><strong>Текущий документ для анализа:</strong> {{ document_name }}</p>
+    {% endif %}
+
+    <form class="main-form" method="post" enctype="multipart/form-data">
         {% csrf_token %}
 
         <div class="form-group">
-            {{ form.docfile.label_tag }}
+            <label for="{{ form.docfile.id_for_label }}">Выберите документ для анализа (или оставьте пустым, чтобы задать вопрос по текущему):</label>
             {{ form.docfile }}
         </div>
 
         <div class="form-group">
-            {{ form.question.label_tag }}
+            <label for="{{ form.question.id_for_label }}">Задайте ваш вопрос по документу:</label>
             {{ form.question }}
         </div>
 
-        <button type="submit">Получить ответ</button>
+        <button type="submit">Отправить</button>
     </form>
 
-    {% if answer %}
+    {% if answer or context %}
     <div class="answer-section">
-        <h2>Ответ модели:</h2>
-        <p>{{ answer|linebreaksbr }}</p>
+        <h2>Результат:</h2>
+
+        {% if answer %}
+            <p><strong>{{ answer }}</strong></p>
+        {% endif %}
+
+        {% if context %}
+            <hr>
+            {% for chunk in context %}
+                <div class="context-chunk">
+                    <p>{{ chunk|linebreaksbr }}</p>
+                </div>
+            {% endfor %}
+        {% endif %}
+
     </div>
     {% endif %}
 

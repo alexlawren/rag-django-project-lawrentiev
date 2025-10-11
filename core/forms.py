@@ -6,8 +6,9 @@ class DocumentForm(forms.Form):
         label = 'Выберите документ для анализа'
     )
 
-    # Поле для ввода текстового запроса
-    questions = forms.CharField(
-        label = 'Задайте мне вопрос по документу',
-        widget = forms.Textarea(attrs = {'rows':'4'}),
+
+    question = forms.CharField(
+        label='Задайте мне вопрос по документу',
+        widget=forms.Textarea(attrs={'rows': '4'}),
+        required=False  # <-- Добавим это для удобства
     )
