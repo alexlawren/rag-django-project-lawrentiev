@@ -2,69 +2,57 @@
 from django.shortcuts import render
 from .forms import DocumentForm
 from . import rag_logic
+import chromadb
+import hashlib
+
+db_client = chromadb.PersistentClient(path="./chroma_db")
 
 
 def main_page_view(request):
     form = DocumentForm(request.POST or None, request.FILES or None)
     answer = None
     context = None
+
+    collection_name = request.session.get('collection_name', None)
     document_name = request.session.get('document_name', None)
 
     if request.method == 'POST' and form.is_valid():
         uploaded_file = form.cleaned_data.get('docfile')
         question = form.cleaned_data.get('question')
 
-        # Переменная для хранения чанков в текущем запросе
-        current_chunks = None
-
-        # --- НОВАЯ УЛУЧШЕННАЯ ЛОГИКА ---
-
-        # Сначала ВСЕГДА обрабатываем новый файл, если он есть
         if uploaded_file:
-            print(f"Обработка нового файла: {uploaded_file.name}")
+            # Эта часть для загрузки файла остается без изменений
+            file_hash = hashlib.md5(uploaded_file.name.encode()).hexdigest()
+            collection_name = f"doc_{file_hash}"
             document_text = rag_logic.get_document_text(uploaded_file)
-
             if document_text:
-                current_chunks = rag_logic.get_text_chunks(document_text)
-                request.session['text_chunks'] = current_chunks
+                text_chunks = rag_logic.get_text_chunks(document_text)
+                collection = db_client.get_or_create_collection(name=collection_name)
+                rag_logic.add_chunks_to_collection(collection, text_chunks)
+                request.session['collection_name'] = collection_name
                 request.session['document_name'] = uploaded_file.name
                 document_name = uploaded_file.name
-                answer = f"Документ '{uploaded_file.name}' успешно обработан. "
+                answer = f"Документ '{uploaded_file.name}' успешно обработан и сохранен."
             else:
                 answer = "Ошибка: не удалось прочитать текст из файла."
-                # Очищаем сессию в случае ошибки
-                request.session.pop('text_chunks', None)
-                request.session.pop('document_name', None)
-        else:
-            # Если новый файл не загружен, берем чанки из сессии
-            current_chunks = request.session.get('text_chunks')
 
-        # ТЕПЕРЬ, после обработки файла, проверяем, был ли задан вопрос
-        if question:
-            if current_chunks:
-                print(f"Выполнение поиска по вопросу: '{question}'")
-                # Создаем векторную базу "на лету" из актуальных чанков
-                vector_store = rag_logic.create_vector_store(current_chunks)
+        elif question:
+            if collection_name:
+                collection = db_client.get_collection(name=collection_name)
 
-                if vector_store:
-                    context = rag_logic.search_in_vector_store(vector_store, question)
-                    # Если до этого уже было сообщение, добавляем к нему. Иначе - создаем новое.
-                    if answer:
-                        answer += "Вот результаты поиска по вашему вопросу:"
-                    else:
-                        answer = "Вот наиболее релевантные фрагменты по вашему вопросу:"
-                else:
-                    answer = "Произошла ошибка при создании векторной базы."
+                # --- ИЗМЕНЕННАЯ ЛОГИКА ---
+                # 1. Сначала выполняем ШИРОКИЙ поиск, чтобы получить кандидатов
+                candidate_docs = rag_logic.search_in_vector_store(collection, question)
+
+                # 2. ВЫЗЫВАЕМ RE-RANKER, чтобы пересортировать кандидатов и выбрать лучших
+                # Этот отфильтрованный список и будет нашим финальным контекстом
+                context = rag_logic.rerank_documents(question, candidate_docs)
+                # --- КОНЕЦ ИЗМЕНЕННОЙ ЛОГИКИ ---
+
+                # 3. Генерируем ответ, используя уже улучшенный контекст
+                answer = rag_logic.generate_answer_from_context(context, question)
             else:
-                answer = "Ошибка: пожалуйста, сначала загрузите документ, чтобы задать по нему вопрос."
+                answer = "Ошибка: пожалуйста, сначала загрузите документ."
 
-    return render(
-        request,
-        'core/main_page.html',
-        {
-            'form': form,
-            'answer': answer,
-            'context': context,
-            'document_name': document_name,
-        }
-    )
+    return render(request, 'core/main_page.html',
+                  {'form': form, 'answer': answer, 'context': context, 'document_name': document_name})

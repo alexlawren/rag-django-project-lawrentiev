@@ -3,22 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <title>RAG-система для анализа документов</title>
+    <!-- Подключаем современный шрифт от Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background-color: #f4f4f9; color: #333; }
-        h1 { color: #0056b3; }
-        .main-form, .answer-section { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="file"], textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #0056b3; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background-color: #004494; }
-        .context-chunk { border: 1px dashed #aaa; padding: 10px; margin-top: 10px; background-color: #f8f9fa; }
-        .document-info { font-style: italic; color: #555; }
+        /* --- ОБЩИЕ СТИЛИ И ТЁМНАЯ ТЕМА --- */
+        body {
+            background-color: #1f1f1f; /* Глубокий тёмно-серый фон */
+            color: #e8eaed; /* Светло-серый текст для лучшей читаемости */
+            font-family: 'Roboto', sans-serif; /* Современный шрифт */
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ffffff; /* Чисто белый заголовок */
+            text-align: center;
+            letter-spacing: 0.5px; /* Небольшое разрежение букв */
+        }
+
+        /* --- СТИЛЬ ДЛЯ ПОДПИСИ АВТОРА --- */
+        .creator-credit {
+            color: #9aa0a6; /* Приглушенный серый цвет */
+            text-align: center;
+            font-style: italic;
+            margin-top: -15px; /* Ближе к заголовку */
+            margin-bottom: 40px;
+        }
+
+        /* --- КОНТЕЙНЕРЫ ФОРМЫ И ОТВЕТА --- */
+        .main-form, .answer-section {
+            background-color: #303030; /* Чуть более светлый фон для контраста */
+            padding: 25px;
+            border-radius: 12px; /* Более скругленные углы */
+            border: 1px solid #444; /* Тонкая рамка */
+            margin-top: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500; /* Medium-начертание для подписей */
+            color: #bdc1c6;
+        }
+
+        /* --- СТИЛИ ПОЛЕЙ ВВОДА --- */
+        textarea, input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            background-color: #202124; /* Очень тёмный фон для полей */
+            color: #e8eaed; /* Светлый текст внутри поля */
+            border: 1px solid #5f6368; /* Серая рамка */
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        input[type="file"] {
+            padding: 8px; /* Уменьшаем внутренний отступ для поля файла */
+        }
+
+        /* Стиль при фокусе на поле ввода */
+        textarea:focus, input[type="file"]:focus {
+            outline: none;
+            border-color: #8ab4f8; /* Голубая подсветка при активации */
+        }
+
+        /* --- СТИЛИ КНОПКИ --- */
+        button {
+            background-color: #8ab4f8; /* Светло-голубой фон кнопки */
+            color: #202124; /* Тёмный текст для контраста */
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            width: 100%; /* Кнопка на всю ширину */
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        button:hover {
+            background-color: #a7c5f3; /* Чуть светлее при наведении */
+        }
+
+        /* --- СТИЛИ ДЛЯ ВЫВОДА РЕЗУЛЬТАТОВ --- */
+        .document-info {
+            font-style: italic;
+            text-align: center;
+            color: #9aa0a6;
+        }
+
+        .answer-section h2, .answer-section h3 {
+            color: #e8eaed;
+            border-bottom: 1px solid #5f6368;
+            padding-bottom: 10px;
+        }
+
+        #typewriter-answer {
+            line-height: 1.6; /* Увеличиваем межстрочный интервал для читаемости */
+            font-size: 1.1em;
+        }
+
+        .context-chunk {
+            border: 1px dashed #5f6368;
+            padding: 15px;
+            margin-top: 15px;
+            background-color: #202124;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #bdc1c6;
+        }
+
+        /* --- Анимация курсора для эффекта печати --- */
+        .cursor {
+            display: inline-block;
+            background-color: #e8eaed;
+            width: 10px;
+            height: 1.1em;
+            margin-left: 3px;
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            from, to { background-color: transparent; }
+            50% { background-color: #e8eaed; }
+        }
     </style>
 </head>
 <body>
 
     <h1>RAG-система для анализа документов</h1>
+    <p class="creator-credit">Разработано: Лаврентьев А.В.</p>
 
     {% if document_name %}
         <p class="document-info"><strong>Текущий документ для анализа:</strong> {{ document_name }}</p>
@@ -26,17 +148,14 @@
 
     <form class="main-form" method="post" enctype="multipart/form-data">
         {% csrf_token %}
-
         <div class="form-group">
             <label for="{{ form.docfile.id_for_label }}">Выберите документ для анализа (или оставьте пустым, чтобы задать вопрос по текущему):</label>
             {{ form.docfile }}
         </div>
-
         <div class="form-group">
             <label for="{{ form.question.id_for_label }}">Задайте ваш вопрос по документу:</label>
             {{ form.question }}
         </div>
-
         <button type="submit">Отправить</button>
     </form>
 
@@ -45,19 +164,51 @@
         <h2>Результат:</h2>
 
         {% if answer %}
-            <p><strong>{{ answer }}</strong></p>
+            <p id="typewriter-answer"></p>
         {% endif %}
 
         {% if context %}
-            <hr>
+            <hr style="border-color: #444; margin: 25px 0;">
+            <h3>Контекст, на основе которого был дан ответ (так "думала" система):</h3>
             {% for chunk in context %}
                 <div class="context-chunk">
-                    <p>{{ chunk|linebreaksbr }}</p>
+                    <p><strong>Фрагмент {{ forloop.counter }}:</strong> {{ chunk|linebreaksbr }}</p>
                 </div>
             {% endfor %}
         {% endif %}
-
     </div>
+    {% endif %}
+
+    {% if answer %}
+        {{ answer|json_script:"answer-data" }}
+        <script>
+            try {
+                const answerJson = document.getElementById('answer-data').textContent;
+                const fullAnswer = JSON.parse(answerJson).replace(/(\r\n|\n|\r)/gm, "<br>");
+
+                const targetElement = document.getElementById('typewriter-answer');
+
+                if (fullAnswer && targetElement) {
+                    let i = 0;
+                    const speed = 30; // Можно сделать печать немного быстрее
+
+                    function typeWriter() {
+                        if (i < fullAnswer.length) {
+                            targetElement.innerHTML = fullAnswer.substring(0, i + 1) + '<span class="cursor"></span>';
+                            i++;
+                            setTimeout(typeWriter, speed);
+                        } else {
+                            targetElement.innerHTML = fullAnswer; // Убираем курсор в конце
+                        }
+                    }
+                    typeWriter();
+                }
+            } catch (e) {
+                console.error("Ошибка при запуске анимации:", e);
+                const fullAnswer = JSON.parse(document.getElementById('answer-data').textContent);
+                document.getElementById('typewriter-answer').textContent = fullAnswer;
+            }
+        </script>
     {% endif %}
 
 </body>
