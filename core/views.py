@@ -1,9 +1,10 @@
-# core/views.py
 from django.shortcuts import render
 from .forms import DocumentForm
 from . import rag_logic
 import chromadb
 import hashlib
+import os
+from django.core.files.storage import FileSystemStorage
 
 db_client = chromadb.PersistentClient(path="./chroma_db")
 
@@ -21,35 +22,33 @@ def main_page_view(request):
         question = form.cleaned_data.get('question')
 
         if uploaded_file:
-            # Эта часть для загрузки файла остается без изменений
             file_hash = hashlib.md5(uploaded_file.name.encode()).hexdigest()
             collection_name = f"doc_{file_hash}"
-            document_text = rag_logic.get_document_text(uploaded_file)
-            if document_text:
-                text_chunks = rag_logic.get_text_chunks(document_text)
-                collection = db_client.get_or_create_collection(name=collection_name)
-                rag_logic.add_chunks_to_collection(collection, text_chunks)
-                request.session['collection_name'] = collection_name
-                request.session['document_name'] = uploaded_file.name
-                document_name = uploaded_file.name
-                answer = f"Документ '{uploaded_file.name}' успешно обработан и сохранен."
-            else:
-                answer = "Ошибка: не удалось прочитать текст из файла."
+
+            fs = FileSystemStorage()
+            filename = fs.save(uploaded_file.name, uploaded_file)
+            uploaded_file_path = fs.path(filename)
+
+            try:
+                chunks = rag_logic.create_sentence_window_chunks(uploaded_file_path)
+
+                if chunks:
+                    collection = db_client.get_or_create_collection(name=collection_name)
+                    rag_logic.add_sentence_chunks_to_collection(collection, chunks)
+
+                    request.session['collection_name'] = collection_name
+                    request.session['document_name'] = uploaded_file.name
+                    document_name = uploaded_file.name
+                    answer = f"Документ '{uploaded_file.name}' успешно обработан и сохранен."
+                else:
+                    answer = "Ошибка: не удалось обработать файл."
+            finally:
+                os.remove(uploaded_file_path)
 
         elif question:
             if collection_name:
                 collection = db_client.get_collection(name=collection_name)
-
-                # --- ИЗМЕНЕННАЯ ЛОГИКА ---
-                # 1. Сначала выполняем ШИРОКИЙ поиск, чтобы получить кандидатов
-                candidate_docs = rag_logic.search_in_vector_store(collection, question)
-
-                # 2. ВЫЗЫВАЕМ RE-RANKER, чтобы пересортировать кандидатов и выбрать лучших
-                # Этот отфильтрованный список и будет нашим финальным контекстом
-                context = rag_logic.rerank_documents(question, candidate_docs)
-                # --- КОНЕЦ ИЗМЕНЕННОЙ ЛОГИКИ ---
-
-                # 3. Генерируем ответ, используя уже улучшенный контекст
+                context = rag_logic.search_and_rerank(collection, question)
                 answer = rag_logic.generate_answer_from_context(context, question)
             else:
                 answer = "Ошибка: пожалуйста, сначала загрузите документ."

@@ -1,18 +1,27 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import chromadb
-import docx
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.cross_encoder import CrossEncoder
+
+# Импорты для продвинутого чанкинга
+from langchain_community.document_loaders import UnstructuredFileLoader
+import nltk
+
+# Одноразовая проверка и загрузка данных NLTK при старте
+try:
+    nltk.data.find('tokenizers/punkt')
+except nltk.downloader.DownloadError:
+    print("Скачивание данных NLTK (punkt)...")
+    nltk.download('punkt')
+    print("Данные NLTK успешно скачаны.")
 
 # --- ЗАГРУЗКА МОДЕЛЕЙ ---
 print("Загрузка модели для эмбеддингов...")
 embedding_model = SentenceTransformer('all-mpnet-base-v2')
 print("Модель для эмбеддингов загружена.")
 
-print("Загрузка LLM... Это может занять некоторое время.")
+print("Загрузка LLM...")
 LLM_ID = "Qwen/Qwen1.5-4B-Chat"
 llm_tokenizer = AutoTokenizer.from_pretrained(LLM_ID)
 llm_model = AutoModelForCausalLM.from_pretrained(
@@ -22,111 +31,107 @@ llm_model = AutoModelForCausalLM.from_pretrained(
 )
 print("LLM успешно загружена.")
 
-# --- НОВЫЙ БЛОК: ЗАГРУЗКА RE-RANKER ---
 print("Загрузка модели Re-ranker...")
-# Мы используем легкую, но очень эффективную модель-кросс-энкодер
 reranker_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 print("Re-ranker успешно загружен.")
 
 
-# --- КОНЕЦ НОВОГО БЛОКА ---
+# --- КОНЕЦ ЗАГРУЗКИ МОДЕЛЕЙ ---
 
 
-# Функции get_document_text, get_text_chunks, add_chunks_to_collection остаются БЕЗ ИЗМЕНЕНИЙ
-def get_document_text(uploaded_file):
-    text = ""
-    file_name = uploaded_file.name
-    file_extension = file_name.split('.')[-1].lower()
-    if file_extension == 'pdf':
-        pdf_reader = PdfReader(uploaded_file)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-    elif file_extension == 'docx':
-        doc = docx.Document(uploaded_file)
-        for para in doc.paragraphs:
-            text += para.text + "\n"
-    elif file_extension == 'txt':
-        text = uploaded_file.read().decode("utf-8")
-    else:
-        return None
-    return text
+def create_sentence_window_chunks(file_path, window_size=3):
+    """
+    Гибридный метод: Unstructured разделяет на блоки, NLTK - на предложения внутри блоков.
+    """
+    print(f"Загрузка и ИЕРАРХИЧЕСКАЯ обработка документа: {file_path}")
+    loader = UnstructuredFileLoader(file_path, mode="single", strategy="fast")
+    documents = loader.load()
 
+    all_sentences = []
+    # Проходим по каждому логическому блоку от Unstructured
+    for doc in documents:
+        # И уже внутри блока делим на предложения с помощью NLTK
+        all_sentences.extend(nltk.sent_tokenize(doc.page_content))
 
-def get_text_chunks(text):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=150,
-        length_function=len
-    )
-    chunks = text_splitter.split_text(text)
+    chunks = []
+    for i, sentence in enumerate(all_sentences):
+        # Определяем границы "окна"
+        start_index = max(0, i - window_size)
+        end_index = min(len(all_sentences), i + 1 + window_size)
+
+        # Создаем "окно" - соединяем предложения вокруг основного
+        window = " ".join(all_sentences[start_index:end_index])
+
+        # Сохраняем и основное предложение (для поиска), и окно (для контекста)
+        chunks.append({
+            'sentence': sentence,
+            'window': window
+        })
+
+    print(f"Документ разделен на {len(chunks)} предложений/чанков.")
     return chunks
 
 
-def add_chunks_to_collection(collection, text_chunks):
-    """Векторизует чанки и добавляет их в существующую коллекцию ChromaDB."""
-    print("Создание эмбеддингов для фрагментов текста...")
-    embeddings = embedding_model.encode(text_chunks, show_progress_bar=True)
+def add_sentence_chunks_to_collection(collection, chunks):
+    """
+    Индексирует отдельные предложения, сохраняя "окна" в метаданных.
+    """
+    sentences = [chunk['sentence'] for chunk in chunks]
+    metadatas = [{'window': chunk['window']} for chunk in chunks]
+    ids = [str(i) for i in range(len(sentences))]
+
+    print("Создание эмбеддингов для отдельных предложений...")
+    embeddings = embedding_model.encode(sentences, show_progress_bar=True)
     print("Эмбеддинги созданы.")
-    chunk_ids = [str(i) for i in range(len(text_chunks))]
-    print(f"Добавление {len(text_chunks)} фрагментов в коллекцию '{collection.name}'...")
+
+    print(f"Добавление {len(chunks)} чанков в коллекцию '{collection.name}'...")
     collection.add(
         embeddings=embeddings.tolist(),
-        documents=text_chunks,
-        ids=chunk_ids
+        documents=sentences,
+        metadatas=metadatas,
+        ids=ids
     )
-    print("Фрагменты успешно добавлены.")
+    print("Чанки успешно добавлены.")
 
 
-def search_in_vector_store(collection, query):
+def search_and_rerank(collection, query, top_k_retriever=30, top_k_reranker=5):
+    """
+    Двухэтапный поиск: быстрый поиск по векторам, затем точная пересортировка с Re-ranker'ом.
+    """
+    # Этап 1: Быстрый поиск по векторам для получения кандидатов
     query_embedding = embedding_model.encode(query)
-
-    # --- ИЗМЕНЕНИЕ: Увеличиваем количество кандидатов для Re-ranker ---
-    # Мы берем больше документов (20), чтобы дать ре-ранкеру больше выбора.
+    print(f"Поиск {top_k_retriever} кандидатов...")
     results = collection.query(
         query_embeddings=[query_embedding.tolist()],
-        n_results=20
+        n_results=top_k_retriever,
+        include=["documents", "metadatas"]
     )
-    return results['documents'][0]
 
+    candidate_sentences = results["documents"][0]
 
-# --- НОВАЯ ФУНКЦИЯ: RERANK_DOCUMENTS ---
-def rerank_documents(query, documents, top_n=5):
-    """
-    Пересортировывает документы, используя модель CrossEncoder, и возвращает top_n лучших.
-    """
-    print(f"Переранжирование {len(documents)} документов...")
-    # Создаем пары [вопрос, документ] для модели
-    pairs = [[query, doc] for doc in documents]
-
-    # Получаем оценки релевантности от модели
+    # Этап 2: Точная пересортировка с помощью Re-ranker'а
+    print(f"Переранжирование {len(candidate_sentences)} кандидатов...")
+    pairs = [[query, sentence] for sentence in candidate_sentences]
     scores = reranker_model.predict(pairs, show_progress_bar=False)
 
-    # Соединяем документы с их оценками
-    doc_scores = list(zip(documents, scores))
+    original_metadatas = results["metadatas"][0]
+    sentence_scores_meta = list(zip(candidate_sentences, scores, original_metadatas))
 
-    # Сортируем по оценке в порядке убывания
-    doc_scores.sort(key=lambda x: x[1], reverse=True)
+    sentence_scores_meta.sort(key=lambda x: x[1], reverse=True)
 
-    # Возвращаем только текст top_n лучших документов
-    reranked_docs = [doc for doc, score in doc_scores[:top_n]]
-    print(f"Топ-{top_n} документов после переранжирования выбраны.")
-    return reranked_docs
-
-
-# --- КОНЕЦ НОВОЙ ФУНКЦИИ ---
+    # Возвращаем "окна" от топ-N лучших результатов
+    reranked_windows = [meta["window"] for sentence, score, meta in sentence_scores_meta[:top_k_reranker]]
+    print(f"Топ-{top_k_reranker} контекстных 'окон' выбраны после переранжирования.")
+    return reranked_windows
 
 
-# Ваша исходная функция generate_answer_from_context остается БЕЗ ИЗМЕНЕНИЙ
 def generate_answer_from_context(context, query):
-    """
-    Генерирует ответ на вопрос, используя найденный контекст.
-    """
     prompt_template = f"""
     Инструкция: Ты — высокоточный ассистент для ответов на вопросы по документу.
     1.  Отвечай на вопрос пользователя, основываясь ИСКЛЮЧИТЕЛЬНО на предоставленном ниже контексте.
-    2.  Будь предельно кратким и точным. Не добавляй лишней информации, которая не требуется для ответа.
-    3.  Если вопрос требует двух фактов, предоставь только эти два факта.
-    4.  Если в контексте нет ответа, ты ОБЯЗАН ответить: 'На основании предоставленного документа я не могу ответить на ваш вопрос'. Не выдумывай ничего.
+    2.  Будь предельно кратким и точным. Не добавляй лишней информации.
+    3.  Если в контексте нет ответа, ты ОБЯЗАН ответить: 'На основании предоставленного документа я не могу ответить на ваш вопрос'. Не выдумывай ничего.
+    4.  ВАЖНО: Ответ должен быть дан СТРОГО на русском языке.
 
     Контекст:
     ---
@@ -134,7 +139,7 @@ def generate_answer_from_context(context, query):
     ---
 
     Вопрос: {query}
-    Краткий и точный ответ:
+    Краткий и точный ответ на русском языке:
     """
     messages = [{"role": "user", "content": prompt_template}]
     prompt = llm_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
