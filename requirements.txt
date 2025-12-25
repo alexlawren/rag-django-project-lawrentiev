@@ -1,0 +1,23 @@
+                 # Основной фреймворк
+django
+
+# Библиотеки для машинного обучения и RAG
+torch
+transformers
+accelerate
+sentence-transformers
+chromadb
+langchain-community
+
+# Парсинг документов, включая поддержку PDF
+unstructured[pdf]
+nltk
+python-magic
+libmagic
+pdf2image
+
+# Зависимость для Django/Unstructured в Linux-окружении (не повредит)
+tzdata
+
+# Веб-сервер для продакшена (можно оставить, не мешает)
+gunicorn

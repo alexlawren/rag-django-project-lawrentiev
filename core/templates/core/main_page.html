@@ -9,7 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 
     <style>
-        /* --- ОБЩИЕ СТИЛИ И ТЁМНАЯ ТЕМА --- */
         body {
             background-color: #1f1f1f; /* Глубокий тёмно-серый фон */
             color: #e8eaed; /* Светло-серый текст для лучшей читаемости */
@@ -18,14 +17,11 @@
             margin: 40px auto;
             padding: 20px;
         }
-
         h1 {
             color: #ffffff; /* Чисто белый заголовок */
             text-align: center;
             letter-spacing: 0.5px; /* Небольшое разрежение букв */
         }
-
-        /* --- СТИЛЬ ДЛЯ ПОДПИСИ АВТОРА --- */
         .creator-credit {
             color: #9aa0a6; /* Приглушенный серый цвет */
             text-align: center;
@@ -33,8 +29,6 @@
             margin-top: -15px; /* Ближе к заголовку */
             margin-bottom: 40px;
         }
-
-        /* --- КОНТЕЙНЕРЫ ФОРМЫ И ОТВЕТА --- */
         .main-form, .answer-section {
             background-color: #303030; /* Чуть более светлый фон для контраста */
             padding: 25px;
@@ -42,22 +36,15 @@
             border: 1px solid #444; /* Тонкая рамка */
             margin-top: 20px;
         }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
+        .form-group { margin-bottom: 20px; }
         label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500; /* Medium-начертание для подписей */
             color: #bdc1c6;
         }
-
-        /* --- СТИЛИ ПОЛЕЙ ВВОДА --- */
         textarea, input[type="file"] {
-            width: 100%;
-            padding: 12px;
+            width: 100%; padding: 12px;
             background-color: #202124; /* Очень тёмный фон для полей */
             color: #e8eaed; /* Светлый текст внутри поля */
             border: 1px solid #5f6368; /* Серая рамка */
@@ -65,71 +52,45 @@
             box-sizing: border-box;
             transition: border-color 0.2s ease-in-out;
         }
-
-        input[type="file"] {
-            padding: 8px; /* Уменьшаем внутренний отступ для поля файла */
-        }
-
-        /* Стиль при фокусе на поле ввода */
+        input[type="file"] { padding: 8px; }
         textarea:focus, input[type="file"]:focus {
             outline: none;
             border-color: #8ab4f8; /* Голубая подсветка при активации */
         }
-
-        /* --- СТИЛИ КНОПКИ --- */
         button {
             background-color: #8ab4f8; /* Светло-голубой фон кнопки */
             color: #202124; /* Тёмный текст для контраста */
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
+            padding: 12px 20px; border: none;
+            border-radius: 8px; cursor: pointer;
+            font-size: 16px; font-weight: 500;
             width: 100%; /* Кнопка на всю ширину */
             transition: background-color 0.2s ease-in-out;
         }
-
-        button:hover {
-            background-color: #a7c5f3; /* Чуть светлее при наведении */
-        }
-
-        /* --- СТИЛИ ДЛЯ ВЫВОДА РЕЗУЛЬТАТОВ --- */
+        button:hover { background-color: #a7c5f3; }
         .document-info {
             font-style: italic;
             text-align: center;
             color: #9aa0a6;
         }
-
         .answer-section h2, .answer-section h3 {
             color: #e8eaed;
             border-bottom: 1px solid #5f6368;
             padding-bottom: 10px;
         }
-
         #typewriter-answer {
             line-height: 1.6; /* Увеличиваем межстрочный интервал для читаемости */
             font-size: 1.1em;
         }
-
         .context-chunk {
-            border: 1px dashed #5f6368;
-            padding: 15px;
-            margin-top: 15px;
-            background-color: #202124;
-            border-radius: 8px;
-            font-size: 0.9em;
+            border: 1px dashed #5f6368; padding: 15px;
+            margin-top: 15px; background-color: #202124;
+            border-radius: 8px; font-size: 0.9em;
             color: #bdc1c6;
         }
-
-        /* --- Анимация курсора для эффекта печати --- */
         .cursor {
-            display: inline-block;
-            background-color: #e8eaed;
-            width: 10px;
-            height: 1.1em;
-            margin-left: 3px;
-            animation: blink 1s step-end infinite;
+            display: inline-block; background-color: #e8eaed;
+            width: 10px; height: 1.1em;
+            margin-left: 3px; animation: blink 1s step-end infinite;
         }
         @keyframes blink {
             from, to { background-color: transparent; }
@@ -138,7 +99,6 @@
     </style>
 </head>
 <body>
-
     <h1>RAG-система для анализа документов</h1>
     <p class="creator-credit">Разработано: Лаврентьев А.В.</p>
 
@@ -159,38 +119,55 @@
         <button type="submit">Отправить</button>
     </form>
 
-    {% if answer or context %}
-    <div class="answer-section">
-        <h2>Результат:</h2>
-
-        {% if answer %}
-            <p id="typewriter-answer"></p>
-        {% endif %}
-
-        {% if context %}
-            <hr style="border-color: #444; margin: 25px 0;">
-            <h3>Контекст, на основе которого был дан ответ (так "думала" система):</h3>
-            {% for chunk in context %}
-                <div class="context-chunk">
-                    <p><strong>Фрагмент {{ forloop.counter }}:</strong> {{ chunk|linebreaksbr }}</p>
-                </div>
-            {% endfor %}
+    <div id="answer-section-container">
+        {% if answer or context %}
+        <div class="answer-section">
+            <h2>Результат:</h2>
+            {% if answer %}
+                <p id="typewriter-answer"></p>
+            {% endif %}
+            {% if context %}
+                <hr style="border-color: #444; margin: 25px 0;">
+                <h3>Контекст, на основе которого был дан ответ (так "думала" система):</h3>
+                {% for chunk in context %}
+                    <div class="context-chunk">
+                        <p><strong>Фрагмент {{ forloop.counter }}:</strong> {{ chunk|linebreaksbr }}</p>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
         {% endif %}
     </div>
-    {% endif %}
 
     {% if answer %}
         {{ answer|json_script:"answer-data" }}
-        <script>
-            try {
-                const answerJson = document.getElementById('answer-data').textContent;
-                const fullAnswer = JSON.parse(answerJson).replace(/(\r\n|\n|\r)/gm, "<br>");
+    {% endif %}
+    <script>
+        // Находим форму по ее классу
+        const form = document.querySelector('.main-form');
 
+        // Добавляем обработчик на событие 'submit' (нажатие кнопки "Отправить")
+        form.addEventListener('submit', function() {
+            // Находим контейнер с результатами
+            const answerContainer = document.getElementById('answer-section-container');
+
+            // Если такой контейнер есть на странице
+            if (answerContainer) {
+                // Заменяем его содержимое на сообщение о загрузке
+                answerContainer.innerHTML = '<div class="answer-section"><h2>Обработка вашего запроса...</h2></div>';
+            }
+        });
+
+        const answerDataElement = document.getElementById('answer-data');
+        if (answerDataElement) {
+            try {
+                const answerJson = answerDataElement.textContent;
+                const fullAnswer = JSON.parse(answerJson).replace(/(\r\n|\n|\r)/gm, "<br>");
                 const targetElement = document.getElementById('typewriter-answer');
 
                 if (fullAnswer && targetElement) {
                     let i = 0;
-                    const speed = 30; // Можно сделать печать немного быстрее
+                    const speed = 30;
 
                     function typeWriter() {
                         if (i < fullAnswer.length) {
@@ -205,11 +182,13 @@
                 }
             } catch (e) {
                 console.error("Ошибка при запуске анимации:", e);
-                const fullAnswer = JSON.parse(document.getElementById('answer-data').textContent);
-                document.getElementById('typewriter-answer').textContent = fullAnswer;
+                // Защита: в случае ошибки просто показываем текст
+                const fullAnswer = JSON.parse(answerDataElement.textContent);
+                const targetElement = document.getElementById('typewriter-answer');
+                if (targetElement) targetElement.textContent = fullAnswer;
             }
-        </script>
-    {% endif %}
+        }
+    </script>
 
 </body>
 </html>
