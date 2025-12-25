@@ -20,3 +20,7 @@ __pycache__/
 
 # База данных Django (появится позже)
 db.sqlite3
+/media/
+
+# Наша база данных
+chroma_db/

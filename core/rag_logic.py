@@ -8,7 +8,6 @@ from sentence_transformers.cross_encoder import CrossEncoder
 from langchain_community.document_loaders import UnstructuredFileLoader
 import nltk
 
-# Одноразовая проверка и загрузка данных NLTK при старте
 try:
     nltk.data.find('tokenizers/punkt')
 except nltk.downloader.DownloadError:
@@ -16,7 +15,6 @@ except nltk.downloader.DownloadError:
     nltk.download('punkt')
     print("Данные NLTK успешно скачаны.")
 
-# --- ЗАГРУЗКА МОДЕЛЕЙ ---
 print("Загрузка модели для эмбеддингов...")
 embedding_model = SentenceTransformer('all-mpnet-base-v2')
 print("Модель для эмбеддингов загружена.")
@@ -26,17 +24,14 @@ LLM_ID = "Qwen/Qwen1.5-4B-Chat"
 llm_tokenizer = AutoTokenizer.from_pretrained(LLM_ID)
 llm_model = AutoModelForCausalLM.from_pretrained(
     LLM_ID,
-    torch_dtype="auto",
-    device_map="auto"
+    torch_dtype="auto", # Автоматически выбрать оптимальный тип данных
+    device_map="auto" # Автоматически разместить модель на GPU
 )
 print("LLM успешно загружена.")
 
 print("Загрузка модели Re-ranker...")
 reranker_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 print("Re-ranker успешно загружен.")
-
-
-# --- КОНЕЦ ЗАГРУЗКИ МОДЕЛЕЙ ---
 
 
 def create_sentence_window_chunks(file_path, window_size=3):
@@ -135,21 +130,45 @@ def generate_answer_from_context(context, query):
 
     Контекст:
     ---
-    {" ".join(context)}
+    {" ".join(context)} 
     ---
 
     Вопрос: {query}
     Краткий и точный ответ на русском языке:
     """
+
+    # Оборачиваем наш промпт в структуру "сообщений", которую ожидает токенизатор.
     messages = [{"role": "user", "content": prompt_template}]
-    prompt = llm_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    print("Генерация ответа с помощью LLM...")
-    inputs = llm_tokenizer(prompt, return_tensors="pt").to(llm_model.device)
-    outputs = llm_model.generate(
-        **inputs,
-        max_new_tokens=512,
-        temperature=0.1
+
+    # Используем специальный метод токенизатора, чтобы добавить служебные токены,
+    # которые модель Qwen использует для понимания начала и конца сообщений.
+    prompt = llm_tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
     )
-    response_text = llm_tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+
+    # Теперь превращаем финальный текстовый промпт в числа (тензоры), понятные нейросети.
+    inputs = llm_tokenizer(
+        prompt,
+        return_tensors="pt"
+    ).to(llm_model.device)
+
+    # Запускаем главную функцию модели для генерации текста.
+    outputs = llm_model.generate(
+        **inputs,  # Передаем подготовленные тензоры промпта
+        max_new_tokens=512,  # Ограничиваем максимальную длину ответа
+        temperature=0.1  # Устанавливаем низкую "температуру" для получения точных, а не творческих ответов
+    )
+
+    # Декодирование результата
+    input_length = inputs.input_ids.shape[1]
+
+    # Декодируем (превращаем числа обратно в текст) только ту часть, которая идет ПОСЛЕ промпта.
+    response_text = llm_tokenizer.decode(
+        outputs[0][input_length:],
+        skip_special_tokens=True
+    )
+
     print("Ответ сгенерирован.")
     return response_text

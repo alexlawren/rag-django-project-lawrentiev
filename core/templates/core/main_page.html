@@ -9,7 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 
     <style>
-        /* --- ВАШИ СТИЛИ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ --- */
         body {
             background-color: #1f1f1f; /* Глубокий тёмно-серый фон */
             color: #e8eaed; /* Светло-серый текст для лучшей читаемости */
@@ -144,7 +143,6 @@
         {{ answer|json_script:"answer-data" }}
     {% endif %}
     <script>
-        // --- НОВЫЙ БЛОК ДЛЯ ОЧИСТКИ ---
         // Находим форму по ее классу
         const form = document.querySelector('.main-form');
 
@@ -160,8 +158,6 @@
             }
         });
 
-        // Ваш код для "пишущей машинки" остается здесь.
-        // Он будет работать только после перезагрузки страницы, когда Django передаст 'answer'.
         const answerDataElement = document.getElementById('answer-data');
         if (answerDataElement) {
             try {
